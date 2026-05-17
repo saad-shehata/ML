@@ -49,20 +49,28 @@ if page == "Data Preprocessing":
 elif page == "Model Training":
     st.header("Model Training")
 
+    # initialize all session state values
     if 'n_trees' not in st.session_state:
         st.session_state.n_trees = 100
     if 'max_depth' not in st.session_state:
         st.session_state.max_depth = 5
+    if 'trained_trees' not in st.session_state:
+        st.session_state.trained_trees = 100
+    if 'trained_depth' not in st.session_state:
+        st.session_state.trained_depth = 5
 
-    n_trees = st.slider("Number of Trees", min_value=10, max_value=300, value=st.session_state.n_trees, step=10, key='n_trees')
-    max_depth = st.slider("Max Depth", min_value=1, max_value=20, value=st.session_state.max_depth, key='max_depth')
+    n_trees = st.slider("Number of Trees", min_value=10, max_value=300,
+                        value=st.session_state.n_trees, step=10, key='n_trees')
+    max_depth = st.slider("Max Depth", min_value=1, max_value=20,
+                          value=st.session_state.max_depth, key='max_depth')
 
     if st.button("Train Model"):
         st.session_state.trained_trees = n_trees
         st.session_state.trained_depth = max_depth
+        st.success(f"Model trained with {n_trees} trees and depth {max_depth}!")
 
-    trained_trees = st.session_state.get('trained_trees', 100)
-    trained_depth = st.session_state.get('trained_depth', 5)
+    trained_trees = st.session_state.trained_trees
+    trained_depth = st.session_state.trained_depth
 
     X = df.drop('target', axis=1)
     y = df['target']
@@ -106,6 +114,18 @@ elif page == "Model Training":
 elif page == "Prediction":
     st.header("Prediction")
 
+    # initialize prediction inputs in session state so they dont reset
+    if 'pred_age' not in st.session_state:
+        st.session_state.pred_age = 50
+    if 'pred_trestbps' not in st.session_state:
+        st.session_state.pred_trestbps = 120
+    if 'pred_chol' not in st.session_state:
+        st.session_state.pred_chol = 200
+    if 'pred_thalach' not in st.session_state:
+        st.session_state.pred_thalach = 150
+    if 'pred_oldpeak' not in st.session_state:
+        st.session_state.pred_oldpeak = 1.0
+
     @st.cache_data
     def get_model():
         X = df.drop('target', axis=1)
@@ -124,23 +144,23 @@ elif page == "Prediction":
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        age      = st.slider("Age", 20, 80, 50)
-        sex      = st.selectbox("Sex", [0,1], format_func=lambda x: "Female" if x==0 else "Male")
-        cp       = st.selectbox("Chest Pain Type", [0,1,2,3])
-        trestbps = st.slider("Resting Blood Pressure", 80, 200, 120)
-        chol     = st.slider("Cholesterol", 100, 600, 200)
+        age      = st.slider("Age", 20, 80, key='pred_age')
+        sex      = st.selectbox("Sex", [0,1], format_func=lambda x: "Female" if x==0 else "Male", key='pred_sex')
+        cp       = st.selectbox("Chest Pain Type", [0,1,2,3], key='pred_cp')
+        trestbps = st.slider("Resting Blood Pressure", 80, 200, key='pred_trestbps')
+        chol     = st.slider("Cholesterol", 100, 600, key='pred_chol')
 
     with col2:
-        fbs      = st.selectbox("Fasting Blood Sugar > 120", [0,1], format_func=lambda x: "No" if x==0 else "Yes")
-        restecg  = st.selectbox("Resting ECG", [0,1,2])
-        thalach  = st.slider("Max Heart Rate", 70, 210, 150)
-        exang    = st.selectbox("Exercise Angina", [0,1], format_func=lambda x: "No" if x==0 else "Yes")
+        fbs      = st.selectbox("Fasting Blood Sugar > 120", [0,1], format_func=lambda x: "No" if x==0 else "Yes", key='pred_fbs')
+        restecg  = st.selectbox("Resting ECG", [0,1,2], key='pred_restecg')
+        thalach  = st.slider("Max Heart Rate", 70, 210, key='pred_thalach')
+        exang    = st.selectbox("Exercise Angina", [0,1], format_func=lambda x: "No" if x==0 else "Yes", key='pred_exang')
 
     with col3:
-        oldpeak  = st.slider("ST Depression", 0.0, 6.0, 1.0)
-        slope    = st.selectbox("ST Slope", [0,1,2])
-        ca       = st.selectbox("Major Vessels", [0,1,2,3])
-        thal     = st.selectbox("Thal", [1,2,3])
+        oldpeak  = st.slider("ST Depression", 0.0, 6.0, key='pred_oldpeak')
+        slope    = st.selectbox("ST Slope", [0,1,2], key='pred_slope')
+        ca       = st.selectbox("Major Vessels", [0,1,2,3], key='pred_ca')
+        thal     = st.selectbox("Thal", [1,2,3], key='pred_thal')
 
     inp = pd.DataFrame([[age, sex, cp, trestbps, chol, fbs,
                           restecg, thalach, exang, oldpeak, slope, ca, thal]],
