@@ -58,8 +58,11 @@ elif page == "Model Training":
     max_depth = st.slider("Max Depth", min_value=1, max_value=20, value=st.session_state.max_depth, key='max_depth')
 
     if st.button("Train Model"):
-        st.session_state.n_trees = n_trees
-        st.session_state.max_depth = max_depth
+        st.session_state.trained_trees = n_trees
+        st.session_state.trained_depth = max_depth
+
+    trained_trees = st.session_state.get('trained_trees', 100)
+    trained_depth = st.session_state.get('trained_depth', 5)
 
     X = df.drop('target', axis=1)
     y = df['target']
@@ -69,13 +72,13 @@ elif page == "Model Training":
 
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-    rf = RandomForestClassifier(n_estimators=st.session_state.n_trees, max_depth=st.session_state.max_depth, random_state=42)
+    rf = RandomForestClassifier(n_estimators=trained_trees, max_depth=trained_depth, random_state=42)
     rf.fit(X_train, y_train)
     preds = rf.predict(X_test)
 
     acc = accuracy_score(y_test, preds)
 
-    st.write(f"Trees: {st.session_state.n_trees} | Max Depth: {st.session_state.max_depth}")
+    st.write(f"Trees: {trained_trees} | Max Depth: {trained_depth}")
     st.write(f"Accuracy: {acc*100:.1f}%")
 
     report = classification_report(y_test, preds, output_dict=True)
