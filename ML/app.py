@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -11,11 +12,52 @@ from sklearn.metrics import accuracy_score, confusion_matrix, classification_rep
 st.set_page_config(page_title="Heart Disease Predictor", page_icon="🫀")
 st.title("🫀 Heart Disease Predictor")
 
-import os
 df = pd.read_csv(os.path.join(os.path.dirname(__file__), "heart.csv"))
 
-@st.cache_data
-def train_model():
+# sidebar navigation
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["Data Preprocessing", "Model Training", "Prediction"])
+
+
+# ---- PAGE 1: Data Preprocessing ----
+if page == "Data Preprocessing":
+    st.header("Data Preprocessing")
+
+    st.subheader("Raw Data")
+    st.dataframe(df)
+
+    st.write(f"Shape: {df.shape[0]} rows, {df.shape[1]} columns")
+    st.write(f"Missing values: {df.isnull().sum().sum()}")
+
+    st.subheader("Data After Scaling (StandardScaler)")
+    st.write("StandardScaler transforms each feature to have mean = 0 and std = 1")
+
+    X = df.drop('target', axis=1)
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    scaled_df = pd.DataFrame(X_scaled, columns=X.columns)
+
+    st.dataframe(scaled_df)
+
+    # show a before/after comparison for one feature
+    st.subheader("Before vs After Scaling — Age")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("Before:")
+        st.write(df['age'].describe().round(2))
+    with col2:
+        st.write("After:")
+        st.write(scaled_df['age'].describe().round(2))
+
+
+# ---- PAGE 2: Model Training ----
+elif page == "Model Training":
+    st.header("Model Training")
+
+    # let user pick hyperparameters
+    n_trees = st.slider("Number of Trees", min_value=10, max_value=300, value=100, step=10)
+    max_depth = st.slider("Max Depth", min_value=1, max_value=20, value=5)
+
     X = df.drop('target', axis=1)
     y = df['target']
 
@@ -24,115 +66,91 @@ def train_model():
 
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-    rf = RandomForestClassifier(n_estimators=100, random_state=42)
+    rf = RandomForestClassifier(n_estimators=n_trees, max_depth=max_depth, random_state=42)
     rf.fit(X_train, y_train)
+    preds = rf.predict(X_test)
 
-    acc = accuracy_score(y_test, rf.predict(X_test))
-    return rf, scaler, X_train, X_test, y_train, y_test, acc
+    acc = accuracy_score(y_test, preds)
 
-model, scaler, X_train, X_test, y_train, y_test, acc = train_model()
+    st.write(f"Trees: {n_trees} | Max Depth: {max_depth}")
+    st.write(f"Accuracy: {acc*100:.1f}%")
 
-# section 1
-st.header("1. Data Visualization")
+    # classification report
+    report = classification_report(y_test, preds, output_dict=True)
+    st.subheader("Classification Report")
+    st.dataframe(pd.DataFrame(report).transpose().style.format(precision=2))
 
-col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2)
 
-with col1:
-    fig, ax = plt.subplots()
-    sns.countplot(x='target', hue='target', data=df, palette='Set2', legend=False, ax=ax)
-    ax.set_title('Heart Disease Count')
-    ax.set_xticks([0, 1])
-    ax.set_xticklabels(['No Disease', 'Disease'])
-    st.pyplot(fig)
+    with col1:
+        st.subheader("Confusion Matrix")
+        fig, ax = plt.subplots()
+        sns.heatmap(confusion_matrix(y_test, preds), annot=True, fmt='d', cmap='Blues', ax=ax)
+        ax.set_xlabel('Predicted')
+        ax.set_ylabel('Actual')
+        st.pyplot(fig)
 
-with col2:
-    fig, ax = plt.subplots()
-    sns.histplot(data=df, x='age', hue='target', kde=True, palette='Set2', ax=ax)
-    ax.set_title('Age Distribution')
-    st.pyplot(fig)
+    with col2:
+        st.subheader("Feature Importance")
+        feat_imp = pd.Series(rf.feature_importances_, index=X.columns)
+        fig, ax = plt.subplots()
+        feat_imp.sort_values().plot(kind='barh', color='steelblue', ax=ax)
+        st.pyplot(fig)
 
-col3, col4 = st.columns(2)
 
-with col3:
-    fig, ax = plt.subplots()
-    sns.boxplot(x='target', y='chol', hue='target', data=df, palette='Set2', legend=False, ax=ax)
-    ax.set_title('Cholesterol Levels')
-    ax.set_xticks([0, 1])
-    ax.set_xticklabels(['No Disease', 'Disease'])
-    st.pyplot(fig)
+# ---- PAGE 3: Prediction ----
+elif page == "Prediction":
+    st.header("Prediction")
 
-with col4:
-    fig, ax = plt.subplots()
-    sns.scatterplot(x='age', y='thalach', hue='target', data=df, palette='Set2', ax=ax)
-    ax.set_title('Heart Rate vs Age')
-    st.pyplot(fig)
+    # train with default settings for prediction
+    @st.cache_data
+    def get_model():
+        X = df.drop('target', axis=1)
+        y = df['target']
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+        rf = RandomForestClassifier(n_estimators=100, random_state=42)
+        rf.fit(X_train, y_train)
+        return rf, scaler
 
-fig, ax = plt.subplots(figsize=(10, 6))
-sns.heatmap(df.corr(), annot=True, fmt='.2f', cmap='coolwarm', ax=ax)
-ax.set_title('Correlation Heatmap')
-st.pyplot(fig)
+    model, scaler = get_model()
 
-# section 2
-st.header("2. Model Training")
+    st.subheader("Enter Patient Info")
 
-st.write(f"Model: Random Forest with 100 trees")
-st.write(f"Train/Test split: 80/20")
-st.write(f"Accuracy: {acc*100:.1f}%")
+    col1, col2, col3 = st.columns(3)
 
-preds = model.predict(X_test)
+    with col1:
+        age      = st.slider("Age", 20, 80, 50)
+        sex      = st.selectbox("Sex", [0,1], format_func=lambda x: "Female" if x==0 else "Male")
+        cp       = st.selectbox("Chest Pain Type", [0,1,2,3])
+        trestbps = st.slider("Resting Blood Pressure", 80, 200, 120)
+        chol     = st.slider("Cholesterol", 100, 600, 200)
 
-report = classification_report(y_test, preds, output_dict=True)
-st.subheader("Classification Report")
-st.dataframe(pd.DataFrame(report).transpose().style.format(precision=2))
+    with col2:
+        fbs      = st.selectbox("Fasting Blood Sugar > 120", [0,1], format_func=lambda x: "No" if x==0 else "Yes")
+        restecg  = st.selectbox("Resting ECG", [0,1,2])
+        thalach  = st.slider("Max Heart Rate", 70, 210, 150)
+        exang    = st.selectbox("Exercise Angina", [0,1], format_func=lambda x: "No" if x==0 else "Yes")
 
-col5, col6 = st.columns(2)
+    with col3:
+        oldpeak  = st.slider("ST Depression", 0.0, 6.0, 1.0)
+        slope    = st.selectbox("ST Slope", [0,1,2])
+        ca       = st.selectbox("Major Vessels", [0,1,2,3])
+        thal     = st.selectbox("Thal", [1,2,3])
 
-with col5:
-    fig, ax = plt.subplots()
-    sns.heatmap(confusion_matrix(y_test, preds), annot=True, fmt='d', cmap='Blues', ax=ax)
-    ax.set_xlabel('Predicted')
-    ax.set_ylabel('Actual')
-    ax.set_title('Confusion Matrix')
-    st.pyplot(fig)
+    inp = pd.DataFrame([[age, sex, cp, trestbps, chol, fbs,
+                          restecg, thalach, exang, oldpeak, slope, ca, thal]],
+                        columns=['age','sex','cp','trestbps','chol','fbs',
+                                 'restecg','thalach','exang','oldpeak','slope','ca','thal'])
 
-with col6:
-    feat_imp = pd.Series(model.feature_importances_, index=df.drop('target', axis=1).columns)
-    fig, ax = plt.subplots()
-    feat_imp.sort_values().plot(kind='barh', color='steelblue', ax=ax)
-    ax.set_title('Feature Importance')
-    st.pyplot(fig)
+    inp_scaled = scaler.transform(inp)
 
-# section 3
-st.header("3. Prediction")
+    if st.button("Predict"):
+        result = model.predict(inp_scaled)[0]
+        prob = model.predict_proba(inp_scaled)[0][1]
 
-st.sidebar.header("Patient Info")
-
-age      = st.sidebar.slider("Age", 20, 80, 50)
-sex      = st.sidebar.selectbox("Sex", [0,1], format_func=lambda x: "Female" if x==0 else "Male")
-cp       = st.sidebar.selectbox("Chest Pain Type", [0,1,2,3])
-trestbps = st.sidebar.slider("Resting Blood Pressure", 80, 200, 120)
-chol     = st.sidebar.slider("Cholesterol", 100, 600, 200)
-fbs      = st.sidebar.selectbox("Fasting Blood Sugar > 120", [0,1], format_func=lambda x: "No" if x==0 else "Yes")
-restecg  = st.sidebar.selectbox("Resting ECG", [0,1,2])
-thalach  = st.sidebar.slider("Max Heart Rate", 70, 210, 150)
-exang    = st.sidebar.selectbox("Exercise Angina", [0,1], format_func=lambda x: "No" if x==0 else "Yes")
-oldpeak  = st.sidebar.slider("ST Depression", 0.0, 6.0, 1.0)
-slope    = st.sidebar.selectbox("ST Slope", [0,1,2])
-ca       = st.sidebar.selectbox("Major Vessels", [0,1,2,3])
-thal     = st.sidebar.selectbox("Thal", [1,2,3])
-
-inp = pd.DataFrame([[age, sex, cp, trestbps, chol, fbs,
-                      restecg, thalach, exang, oldpeak, slope, ca, thal]],
-                    columns=['age','sex','cp','trestbps','chol','fbs',
-                             'restecg','thalach','exang','oldpeak','slope','ca','thal'])
-
-inp_scaled = scaler.transform(inp)
-
-if st.button("Predict"):
-    result = model.predict(inp_scaled)[0]
-    prob = model.predict_proba(inp_scaled)[0][1]
-
-    if result == 1:
-        st.error(f"⚠️ High risk — {prob*100:.1f}%")
-    else:
-        st.success(f"✅ Low risk — {prob*100:.1f}%")
+        if result == 1:
+            st.error(f"⚠️ High risk — {prob*100:.1f}%")
+        else:
+            st.success(f"✅ Low risk — {prob*100:.1f}%")
