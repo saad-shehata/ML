@@ -11,7 +11,8 @@ st.title("🫀 Heart Disease Predictor")
 
 @st.cache_data
 def train_model():
-    data = pd.read_csv("heart.csv")
+    import os
+    data = pd.read_csv(os.path.join(os.path.dirname(__file__), "heart.csv"))
 
     X = data.drop('target', axis=1)
     y = data['target']
