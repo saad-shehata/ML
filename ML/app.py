@@ -11,7 +11,8 @@ from sklearn.metrics import accuracy_score, confusion_matrix, classification_rep
 st.set_page_config(page_title="Heart Disease Predictor", page_icon="🫀")
 st.title("🫀 Heart Disease Predictor")
 
-df = pd.read_csv("heart.csv")
+import os
+df = pd.read_csv(os.path.join(os.path.dirname(__file__), "heart.csv"))
 
 @st.cache_data
 def train_model():
