@@ -14,6 +14,32 @@ st.title("🫀 Heart Disease Predictor")
 
 df = pd.read_csv(os.path.join(os.path.dirname(__file__), "heart.csv"))
 
+# initialize ALL session state values at the top before anything else
+# this is the key fix - doing it here means they never get wiped
+defaults = {
+    'n_trees': 100,
+    'max_depth': 5,
+    'trained_trees': 100,
+    'trained_depth': 5,
+    'pred_age': 50,
+    'pred_sex': 0,
+    'pred_cp': 0,
+    'pred_trestbps': 120,
+    'pred_chol': 200,
+    'pred_fbs': 0,
+    'pred_restecg': 0,
+    'pred_thalach': 150,
+    'pred_exang': 0,
+    'pred_oldpeak': 1.0,
+    'pred_slope': 0,
+    'pred_ca': 0,
+    'pred_thal': 1
+}
+
+for key, val in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = val
+
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Data Preprocessing", "Model Training", "Prediction"])
 
@@ -49,16 +75,6 @@ if page == "Data Preprocessing":
 elif page == "Model Training":
     st.header("Model Training")
 
-    # initialize all session state values
-    if 'n_trees' not in st.session_state:
-        st.session_state.n_trees = 100
-    if 'max_depth' not in st.session_state:
-        st.session_state.max_depth = 5
-    if 'trained_trees' not in st.session_state:
-        st.session_state.trained_trees = 100
-    if 'trained_depth' not in st.session_state:
-        st.session_state.trained_depth = 5
-
     n_trees = st.slider("Number of Trees", min_value=10, max_value=300,
                         value=st.session_state.n_trees, step=10, key='n_trees')
     max_depth = st.slider("Max Depth", min_value=1, max_value=20,
@@ -67,10 +83,7 @@ elif page == "Model Training":
     if st.button("Train Model"):
         st.session_state.trained_trees = n_trees
         st.session_state.trained_depth = max_depth
-        st.success(f"Model trained with {n_trees} trees and depth {max_depth}!")
-
-    trained_trees = st.session_state.trained_trees
-    trained_depth = st.session_state.trained_depth
+        st.success(f"Trained with {n_trees} trees and depth {max_depth}!")
 
     X = df.drop('target', axis=1)
     y = df['target']
@@ -80,13 +93,14 @@ elif page == "Model Training":
 
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-    rf = RandomForestClassifier(n_estimators=trained_trees, max_depth=trained_depth, random_state=42)
+    rf = RandomForestClassifier(n_estimators=st.session_state.trained_trees,
+                                 max_depth=st.session_state.trained_depth, random_state=42)
     rf.fit(X_train, y_train)
     preds = rf.predict(X_test)
 
     acc = accuracy_score(y_test, preds)
 
-    st.write(f"Trees: {trained_trees} | Max Depth: {trained_depth}")
+    st.write(f"Trees: {st.session_state.trained_trees} | Max Depth: {st.session_state.trained_depth}")
     st.write(f"Accuracy: {acc*100:.1f}%")
 
     report = classification_report(y_test, preds, output_dict=True)
@@ -114,18 +128,6 @@ elif page == "Model Training":
 elif page == "Prediction":
     st.header("Prediction")
 
-    # initialize prediction inputs in session state so they dont reset
-    if 'pred_age' not in st.session_state:
-        st.session_state.pred_age = 50
-    if 'pred_trestbps' not in st.session_state:
-        st.session_state.pred_trestbps = 120
-    if 'pred_chol' not in st.session_state:
-        st.session_state.pred_chol = 200
-    if 'pred_thalach' not in st.session_state:
-        st.session_state.pred_thalach = 150
-    if 'pred_oldpeak' not in st.session_state:
-        st.session_state.pred_oldpeak = 1.0
-
     @st.cache_data
     def get_model():
         X = df.drop('target', axis=1)
@@ -144,23 +146,39 @@ elif page == "Prediction":
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        age      = st.slider("Age", 20, 80, key='pred_age')
-        sex      = st.selectbox("Sex", [0,1], format_func=lambda x: "Female" if x==0 else "Male", key='pred_sex')
-        cp       = st.selectbox("Chest Pain Type", [0,1,2,3], key='pred_cp')
-        trestbps = st.slider("Resting Blood Pressure", 80, 200, key='pred_trestbps')
-        chol     = st.slider("Cholesterol", 100, 600, key='pred_chol')
+        age      = st.slider("Age", 20, 80,
+                             value=st.session_state.pred_age, key='pred_age')
+        sex      = st.selectbox("Sex", [0,1],
+                                index=[0,1].index(st.session_state.pred_sex),
+                                format_func=lambda x: "Female" if x==0 else "Male", key='pred_sex')
+        cp       = st.selectbox("Chest Pain Type", [0,1,2,3],
+                                index=st.session_state.pred_cp, key='pred_cp')
+        trestbps = st.slider("Resting Blood Pressure", 80, 200,
+                             value=st.session_state.pred_trestbps, key='pred_trestbps')
+        chol     = st.slider("Cholesterol", 100, 600,
+                             value=st.session_state.pred_chol, key='pred_chol')
 
     with col2:
-        fbs      = st.selectbox("Fasting Blood Sugar > 120", [0,1], format_func=lambda x: "No" if x==0 else "Yes", key='pred_fbs')
-        restecg  = st.selectbox("Resting ECG", [0,1,2], key='pred_restecg')
-        thalach  = st.slider("Max Heart Rate", 70, 210, key='pred_thalach')
-        exang    = st.selectbox("Exercise Angina", [0,1], format_func=lambda x: "No" if x==0 else "Yes", key='pred_exang')
+        fbs      = st.selectbox("Fasting Blood Sugar > 120", [0,1],
+                                index=st.session_state.pred_fbs,
+                                format_func=lambda x: "No" if x==0 else "Yes", key='pred_fbs')
+        restecg  = st.selectbox("Resting ECG", [0,1,2],
+                                index=st.session_state.pred_restecg, key='pred_restecg')
+        thalach  = st.slider("Max Heart Rate", 70, 210,
+                             value=st.session_state.pred_thalach, key='pred_thalach')
+        exang    = st.selectbox("Exercise Angina", [0,1],
+                                index=st.session_state.pred_exang,
+                                format_func=lambda x: "No" if x==0 else "Yes", key='pred_exang')
 
     with col3:
-        oldpeak  = st.slider("ST Depression", 0.0, 6.0, key='pred_oldpeak')
-        slope    = st.selectbox("ST Slope", [0,1,2], key='pred_slope')
-        ca       = st.selectbox("Major Vessels", [0,1,2,3], key='pred_ca')
-        thal     = st.selectbox("Thal", [1,2,3], key='pred_thal')
+        oldpeak  = st.slider("ST Depression", 0.0, 6.0,
+                             value=st.session_state.pred_oldpeak, key='pred_oldpeak')
+        slope    = st.selectbox("ST Slope", [0,1,2],
+                                index=st.session_state.pred_slope, key='pred_slope')
+        ca       = st.selectbox("Major Vessels", [0,1,2,3],
+                                index=st.session_state.pred_ca, key='pred_ca')
+        thal     = st.selectbox("Thal", [1,2,3],
+                                index=[1,2,3].index(st.session_state.pred_thal), key='pred_thal')
 
     inp = pd.DataFrame([[age, sex, cp, trestbps, chol, fbs,
                           restecg, thalach, exang, oldpeak, slope, ca, thal]],
