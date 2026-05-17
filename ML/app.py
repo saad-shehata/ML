@@ -14,12 +14,10 @@ st.title("🫀 Heart Disease Predictor")
 
 df = pd.read_csv(os.path.join(os.path.dirname(__file__), "heart.csv"))
 
-# sidebar navigation
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Data Preprocessing", "Model Training", "Prediction"])
 
 
-# ---- PAGE 1: Data Preprocessing ----
 if page == "Data Preprocessing":
     st.header("Data Preprocessing")
 
@@ -29,17 +27,15 @@ if page == "Data Preprocessing":
     st.write(f"Shape: {df.shape[0]} rows, {df.shape[1]} columns")
     st.write(f"Missing values: {df.isnull().sum().sum()}")
 
-    st.subheader("Data After Scaling (StandardScaler)")
-    st.write("StandardScaler transforms each feature to have mean = 0 and std = 1")
-
     X = df.drop('target', axis=1)
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     scaled_df = pd.DataFrame(X_scaled, columns=X.columns)
 
+    st.subheader("Data After Scaling (StandardScaler)")
+    st.write("StandardScaler transforms each feature to have mean = 0 and std = 1")
     st.dataframe(scaled_df)
 
-    # show a before/after comparison for one feature
     st.subheader("Before vs After Scaling — Age")
     col1, col2 = st.columns(2)
     with col1:
@@ -50,13 +46,20 @@ if page == "Data Preprocessing":
         st.write(scaled_df['age'].describe().round(2))
 
 
-# ---- PAGE 2: Model Training ----
 elif page == "Model Training":
     st.header("Model Training")
 
-    # let user pick hyperparameters
-    n_trees = st.slider("Number of Trees", min_value=10, max_value=300, value=100, step=10)
-    max_depth = st.slider("Max Depth", min_value=1, max_value=20, value=5)
+    if 'n_trees' not in st.session_state:
+        st.session_state.n_trees = 100
+    if 'max_depth' not in st.session_state:
+        st.session_state.max_depth = 5
+
+    n_trees = st.slider("Number of Trees", min_value=10, max_value=300, value=st.session_state.n_trees, step=10, key='n_trees')
+    max_depth = st.slider("Max Depth", min_value=1, max_value=20, value=st.session_state.max_depth, key='max_depth')
+
+    if st.button("Train Model"):
+        st.session_state.n_trees = n_trees
+        st.session_state.max_depth = max_depth
 
     X = df.drop('target', axis=1)
     y = df['target']
@@ -66,16 +69,15 @@ elif page == "Model Training":
 
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-    rf = RandomForestClassifier(n_estimators=n_trees, max_depth=max_depth, random_state=42)
+    rf = RandomForestClassifier(n_estimators=st.session_state.n_trees, max_depth=st.session_state.max_depth, random_state=42)
     rf.fit(X_train, y_train)
     preds = rf.predict(X_test)
 
     acc = accuracy_score(y_test, preds)
 
-    st.write(f"Trees: {n_trees} | Max Depth: {max_depth}")
+    st.write(f"Trees: {st.session_state.n_trees} | Max Depth: {st.session_state.max_depth}")
     st.write(f"Accuracy: {acc*100:.1f}%")
 
-    # classification report
     report = classification_report(y_test, preds, output_dict=True)
     st.subheader("Classification Report")
     st.dataframe(pd.DataFrame(report).transpose().style.format(precision=2))
@@ -98,11 +100,9 @@ elif page == "Model Training":
         st.pyplot(fig)
 
 
-# ---- PAGE 3: Prediction ----
 elif page == "Prediction":
     st.header("Prediction")
 
-    # train with default settings for prediction
     @st.cache_data
     def get_model():
         X = df.drop('target', axis=1)
