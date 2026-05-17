@@ -14,8 +14,9 @@ st.title("🫀 Heart Disease Predictor")
 
 df = pd.read_csv(os.path.join(os.path.dirname(__file__), "heart.csv"))
 
-# initialize ALL session state values at the top before anything else
-# this is the key fix - doing it here means they never get wiped
+# FIX: use separate keys for slider widgets vs trained model params.
+# 'n_trees' / 'max_depth' = what the sliders currently show (can drift on re-render).
+# 'trained_trees' / 'trained_depth' = what was actually used to train (only set on button click).
 defaults = {
     'n_trees': 100,
     'max_depth': 5,
@@ -75,14 +76,23 @@ if page == "Data Preprocessing":
 elif page == "Model Training":
     st.header("Model Training")
 
+    # FIX: sliders use dedicated widget keys ('slider_n_trees', 'slider_max_depth')
+    # so they don't collide with 'trained_trees' / 'trained_depth'.
+    # We initialise the slider defaults from whatever was last trained.
+    if 'slider_n_trees' not in st.session_state:
+        st.session_state['slider_n_trees'] = st.session_state['trained_trees']
+    if 'slider_max_depth' not in st.session_state:
+        st.session_state['slider_max_depth'] = st.session_state['trained_depth']
+
     n_trees = st.slider("Number of Trees", min_value=10, max_value=300,
-                        value=st.session_state.n_trees, step=10, key='n_trees')
+                        step=10, key='slider_n_trees')
     max_depth = st.slider("Max Depth", min_value=1, max_value=20,
-                          value=st.session_state.max_depth, key='max_depth')
+                          key='slider_max_depth')
 
     if st.button("Train Model"):
-        st.session_state.trained_trees = n_trees
-        st.session_state.trained_depth = max_depth
+        # Only persist to trained_* on explicit click — navigation never touches these.
+        st.session_state['trained_trees'] = n_trees
+        st.session_state['trained_depth'] = max_depth
         st.success(f"Trained with {n_trees} trees and depth {max_depth}!")
 
     X = df.drop('target', axis=1)
@@ -93,14 +103,15 @@ elif page == "Model Training":
 
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-    rf = RandomForestClassifier(n_estimators=st.session_state.trained_trees,
-                                 max_depth=st.session_state.trained_depth, random_state=42)
+    rf = RandomForestClassifier(n_estimators=st.session_state['trained_trees'],
+                                max_depth=st.session_state['trained_depth'],
+                                random_state=42)
     rf.fit(X_train, y_train)
     preds = rf.predict(X_test)
 
     acc = accuracy_score(y_test, preds)
 
-    st.write(f"Trees: {st.session_state.trained_trees} | Max Depth: {st.session_state.trained_depth}")
+    st.write(f"Trees: {st.session_state['trained_trees']} | Max Depth: {st.session_state['trained_depth']}")
     st.write(f"Accuracy: {acc*100:.1f}%")
 
     report = classification_report(y_test, preds, output_dict=True)
