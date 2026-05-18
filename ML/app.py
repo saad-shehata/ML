@@ -12,29 +12,17 @@ from sklearn.metrics import accuracy_score, confusion_matrix, classification_rep
 st.set_page_config(page_title="Heart Disease Predictor", page_icon="🫀")
 st.title("🫀 Heart Disease Predictor")
 
-df = pd.read_csv(os.path.join(os.path.dirname(__file__), "heart.csv"))
+# Load dataset
+csv_path = os.path.join(os.path.dirname(__file__), "heart.csv")
+df = pd.read_csv(csv_path)
 
-# FIX: use separate keys for slider widgets vs trained model params.
-# 'n_trees' / 'max_depth' = what the sliders currently show (can drift on re-render).
-# 'trained_trees' / 'trained_depth' = what was actually used to train (only set on button click).
+# Initialize session state defaults
 defaults = {
-    'n_trees': 100,
-    'max_depth': 5,
-    'trained_trees': 100,
-    'trained_depth': 5,
-    'pred_age': 50,
-    'pred_sex': 0,
-    'pred_cp': 0,
-    'pred_trestbps': 120,
-    'pred_chol': 200,
-    'pred_fbs': 0,
-    'pred_restecg': 0,
-    'pred_thalach': 150,
-    'pred_exang': 0,
-    'pred_oldpeak': 1.0,
-    'pred_slope': 0,
-    'pred_ca': 0,
-    'pred_thal': 1
+    'n_trees': 100, 'max_depth': 5,
+    'trained_trees': 100, 'trained_depth': 5,
+    'pred_age': 50, 'pred_sex': 0, 'pred_cp': 0, 'pred_trestbps': 120,
+    'pred_chol': 200, 'pred_fbs': 0, 'pred_restecg': 0, 'pred_thalach': 150,
+    'pred_exang': 0, 'pred_oldpeak': 1.0, 'pred_slope': 0, 'pred_ca': 0, 'pred_thal': 1
 }
 
 for key, val in defaults.items():
@@ -44,25 +32,23 @@ for key, val in defaults.items():
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Data Preprocessing", "Model Training", "Prediction"])
 
-
 if page == "Data Preprocessing":
     st.header("Data Preprocessing")
-
+    
     st.subheader("Raw Data")
     st.dataframe(df)
-
+    
     st.write(f"Shape: {df.shape[0]} rows, {df.shape[1]} columns")
     st.write(f"Missing values: {df.isnull().sum().sum()}")
-
+    
     X = df.drop('target', axis=1)
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
-    scaled_df = pd.DataFrame(X_scaled, columns=X.columns)
-
+    df_scaled = pd.DataFrame(X_scaled, columns=X.columns)
+    
     st.subheader("Data After Scaling (StandardScaler)")
-    st.write("StandardScaler transforms each feature to have mean = 0 and std = 1")
-    st.dataframe(scaled_df)
-
+    st.dataframe(df_scaled)
+    
     st.subheader("Before vs After Scaling — Age")
     col1, col2 = st.columns(2)
     with col1:
@@ -70,56 +56,48 @@ if page == "Data Preprocessing":
         st.write(df['age'].describe().round(2))
     with col2:
         st.write("After:")
-        st.write(scaled_df['age'].describe().round(2))
-
+        st.write(df_scaled['age'].describe().round(2))
 
 elif page == "Model Training":
     st.header("Model Training")
-
-    # FIX: sliders use dedicated widget keys ('slider_n_trees', 'slider_max_depth')
-    # so they don't collide with 'trained_trees' / 'trained_depth'.
-    # We initialise the slider defaults from whatever was last trained.
+    
     if 'slider_n_trees' not in st.session_state:
         st.session_state['slider_n_trees'] = st.session_state['trained_trees']
     if 'slider_max_depth' not in st.session_state:
         st.session_state['slider_max_depth'] = st.session_state['trained_depth']
-
-    n_trees = st.slider("Number of Trees", min_value=10, max_value=300,
-                        step=10, key='slider_n_trees')
-    max_depth = st.slider("Max Depth", min_value=1, max_value=20,
-                          key='slider_max_depth')
-
+        
+    n_trees = st.slider("Number of Trees", 10, 300, step=10, key='slider_n_trees')
+    max_depth = st.slider("Max Depth", 1, 20, key='slider_max_depth')
+    
     if st.button("Train Model"):
-        # Only persist to trained_* on explicit click — navigation never touches these.
         st.session_state['trained_trees'] = n_trees
         st.session_state['trained_depth'] = max_depth
-        st.success(f"Trained with {n_trees} trees and depth {max_depth}!")
-
+        st.success(f"Trained model with {n_trees} trees and depth {max_depth}!")
+        
     X = df.drop('target', axis=1)
     y = df['target']
-
+    
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
-
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-
-    rf = RandomForestClassifier(n_estimators=st.session_state['trained_trees'],
-                                max_depth=st.session_state['trained_depth'],
-                                random_state=42)
+    
+    rf = RandomForestClassifier(
+        n_estimators=st.session_state['trained_trees'],
+        max_depth=st.session_state['trained_depth'],
+        random_state=42
+    )
     rf.fit(X_train, y_train)
     preds = rf.predict(X_test)
-
     acc = accuracy_score(y_test, preds)
-
+    
     st.write(f"Trees: {st.session_state['trained_trees']} | Max Depth: {st.session_state['trained_depth']}")
     st.write(f"Accuracy: {acc*100:.1f}%")
-
+    
     report = classification_report(y_test, preds, output_dict=True)
     st.subheader("Classification Report")
     st.dataframe(pd.DataFrame(report).transpose().style.format(precision=2))
-
+    
     col1, col2 = st.columns(2)
-
     with col1:
         st.subheader("Confusion Matrix")
         fig, ax = plt.subplots()
@@ -127,7 +105,7 @@ elif page == "Model Training":
         ax.set_xlabel('Predicted')
         ax.set_ylabel('Actual')
         st.pyplot(fig)
-
+        
     with col2:
         st.subheader("Feature Importance")
         feat_imp = pd.Series(rf.feature_importances_, index=X.columns)
@@ -135,73 +113,57 @@ elif page == "Model Training":
         feat_imp.sort_values().plot(kind='barh', color='steelblue', ax=ax)
         st.pyplot(fig)
 
-
 elif page == "Prediction":
     st.header("Prediction")
-
+    
     @st.cache_data
-    def get_model():
+    def load_base_model():
         X = df.drop('target', axis=1)
         y = df['target']
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
-        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-        rf = RandomForestClassifier(n_estimators=100, random_state=42)
-        rf.fit(X_train, y_train)
-        return rf, scaler
+        X_train, _, y_train, _ = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+        
+        model = RandomForestClassifier(n_estimators=100, random_state=42)
+        model.fit(X_train, y_train)
+        return model, scaler
 
-    model, scaler = get_model()
-
+    model, scaler = load_base_model()
     st.subheader("Enter Patient Info")
-
+    
     col1, col2, col3 = st.columns(3)
-
+    
     with col1:
-        age      = st.slider("Age", 20, 80,
-                             value=st.session_state.pred_age, key='pred_age')
-        sex      = st.selectbox("Sex", [0,1],
-                                index=[0,1].index(st.session_state.pred_sex),
-                                format_func=lambda x: "Female" if x==0 else "Male", key='pred_sex')
-        cp       = st.selectbox("Chest Pain Type", [0,1,2,3],
-                                index=st.session_state.pred_cp, key='pred_cp')
-        trestbps = st.slider("Resting Blood Pressure", 80, 200,
-                             value=st.session_state.pred_trestbps, key='pred_trestbps')
-        chol     = st.slider("Cholesterol", 100, 600,
-                             value=st.session_state.pred_chol, key='pred_chol')
-
+        age = st.slider("Age", 20, 80, value=st.session_state.pred_age, key='pred_age')
+        sex = st.selectbox("Sex", [0, 1], index=[0, 1].index(st.session_state.pred_sex),
+                           format_func=lambda x: "Female" if x == 0 else "Male", key='pred_sex')
+        cp = st.selectbox("Chest Pain Type", [0, 1, 2, 3], index=st.session_state.pred_cp, key='pred_cp')
+        trestbps = st.slider("Resting Blood Pressure", 80, 200, value=st.session_state.pred_trestbps, key='pred_trestbps')
+        chol = st.slider("Cholesterol", 100, 600, value=st.session_state.pred_chol, key='pred_chol')
+        
     with col2:
-        fbs      = st.selectbox("Fasting Blood Sugar > 120", [0,1],
-                                index=st.session_state.pred_fbs,
-                                format_func=lambda x: "No" if x==0 else "Yes", key='pred_fbs')
-        restecg  = st.selectbox("Resting ECG", [0,1,2],
-                                index=st.session_state.pred_restecg, key='pred_restecg')
-        thalach  = st.slider("Max Heart Rate", 70, 210,
-                             value=st.session_state.pred_thalach, key='pred_thalach')
-        exang    = st.selectbox("Exercise Angina", [0,1],
-                                index=st.session_state.pred_exang,
-                                format_func=lambda x: "No" if x==0 else "Yes", key='pred_exang')
-
+        fbs = st.selectbox("Fasting Blood Sugar > 120", [0, 1], index=st.session_state.pred_fbs,
+                           format_func=lambda x: "No" if x == 0 else "Yes", key='pred_fbs')
+        restecg = st.selectbox("Resting ECG", [0, 1, 2], index=st.session_state.pred_restecg, key='pred_restecg')
+        thalach = st.slider("Max Heart Rate", 70, 210, value=st.session_state.pred_thalach, key='pred_thalach')
+        exang = st.selectbox("Exercise Angina", [0, 1], index=st.session_state.pred_exang,
+                             format_func=lambda x: "No" if x == 0 else "Yes", key='pred_exang')
+        
     with col3:
-        oldpeak  = st.slider("ST Depression", 0.0, 6.0,
-                             value=st.session_state.pred_oldpeak, key='pred_oldpeak')
-        slope    = st.selectbox("ST Slope", [0,1,2],
-                                index=st.session_state.pred_slope, key='pred_slope')
-        ca       = st.selectbox("Major Vessels", [0,1,2,3],
-                                index=st.session_state.pred_ca, key='pred_ca')
-        thal     = st.selectbox("Thal", [1,2,3],
-                                index=[1,2,3].index(st.session_state.pred_thal), key='pred_thal')
-
-    inp = pd.DataFrame([[age, sex, cp, trestbps, chol, fbs,
-                          restecg, thalach, exang, oldpeak, slope, ca, thal]],
-                        columns=['age','sex','cp','trestbps','chol','fbs',
-                                 'restecg','thalach','exang','oldpeak','slope','ca','thal'])
-
-    inp_scaled = scaler.transform(inp)
-
+        oldpeak = st.slider("ST Depression", 0.0, 6.0, value=st.session_state.pred_oldpeak, key='pred_oldpeak')
+        slope = st.selectbox("ST Slope", [0, 1, 2], index=st.session_state.pred_slope, key='pred_slope')
+        ca = st.selectbox("Major Vessels", [0, 1, 2, 3], index=st.session_state.pred_ca, key='pred_ca')
+        thal = st.selectbox("Thal", [1, 2, 3], index=[1, 2, 3].index(st.session_state.pred_thal), key='pred_thal')
+        
+    features = ['age', 'sex', 'cp', 'trestbps', 'chol', 'fbs', 'restecg', 'thalach', 'exang', 'oldpeak', 'slope', 'ca', 'thal']
+    user_inputs = pd.DataFrame([[age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal]], columns=features)
+    
+    scaled_inputs = scaler.transform(user_inputs)
+    
     if st.button("Predict"):
-        result = model.predict(inp_scaled)[0]
-        prob = model.predict_proba(inp_scaled)[0][1]
-
+        result = model.predict(scaled_inputs)[0]
+        prob = model.predict_proba(scaled_inputs)[0][1]
+        
         if result == 1:
             st.error(f"⚠️ High risk — {prob*100:.1f}%")
         else:
